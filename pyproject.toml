@@ -1,0 +1,13 @@
+[project]
+name = "atlas-provider-sqlalchemy-advanced"
+version = "0.0.1"
+authors = [{ name = "Florian Schäfer", email = "florian.joh.schaefer@gmail.com" }]
+requires-python = ">=3.10"
+dependencies = [
+  "sqlalchemy",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest",
+]
