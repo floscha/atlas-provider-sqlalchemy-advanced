@@ -8,15 +8,15 @@ from sqlalchemy.orm.decl_api import DeclarativeMeta
 
 
 def infer_sql_statement_from_object(entity, engine) -> str:
-    schema = entity.schema or ""
+    schema = entity.info.get("schema", "")
     name = entity.name
     definition = entity.info.get("definition")
     entity_type = entity.info.get("type")
     match entity_type:
         case "view":
-            return f"CREATE VIEW {schema}{name} AS {definition}"
+            return f"CREATE VIEW {schema}{'.' if schema else ''}{name} AS {definition}"
         case "materialized_view":
-            return f"CREATE MATERIALIZED VIEW {schema}{name} AS {definition}"
+            return f"CREATE MATERIALIZED VIEW {schema}{'.' if schema else ''}{name} AS {definition}"
         case _:  # Assume no type provided means table.
             return str(CreateTable(entity).compile(engine))
 

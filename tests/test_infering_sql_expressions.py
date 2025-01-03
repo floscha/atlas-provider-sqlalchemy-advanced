@@ -6,7 +6,37 @@ from atlas_provider_sqlalchemy_advanced import infer_sql_statement_from_object
 engine = create_mock_engine("postgresql://", executor=lambda sql, *args, **kwargs: ...)
 
 
-def test_infering_table_sql_expression():
+def test_infering_table_sql_expression_without_schema():
+    Base = declarative_base()
+
+    class User(Base):
+        __tablename__ = "users"
+
+        id = Column(Integer, primary_key=True)
+        username = Column(Text, unique=True)
+        email = Column(Text)
+        foo = Column(Text, nullable=False)
+
+    test_entity = User.__table__
+
+    sql_expression = infer_sql_statement_from_object(test_entity, engine)
+
+    assert (
+        sql_expression
+        == """
+CREATE TABLE users (
+\tid SERIAL NOT NULL, 
+\tusername TEXT, 
+\temail TEXT, 
+\tfoo TEXT NOT NULL, 
+\tPRIMARY KEY (id), 
+\tUNIQUE (username)
+)
+
+"""
+    )
+
+def test_infering_table_sql_expression_with_schema():
     Base = declarative_base()
 
     class User(Base):
@@ -38,7 +68,7 @@ CREATE TABLE private.users (
     )
 
 
-def test_infering_view_sql_expression():
+def test_infering_view_sql_expression_without_schema():
     Base = declarative_base()
 
     class UserView(Base):
@@ -62,6 +92,30 @@ def test_infering_view_sql_expression():
         == "CREATE VIEW user_view AS SELECT id, username, email FROM private.users"
     )
 
+def test_infering_view_sql_expression_with_schema():
+    Base = declarative_base()
+
+    class UserView(Base):
+        __tablename__ = "user_view"
+        __table_args__ = {
+            "info": {
+                "schema": "private",
+                "type": "view",
+                "definition": "SELECT id, username, email FROM private.users",
+            }
+        }
+        id = Column(Integer, primary_key=True)
+        username = Column(Text, unique=True)
+        email = Column(Text)
+
+    test_entity = UserView.__table__
+
+    sql_expression = infer_sql_statement_from_object(test_entity, engine)
+
+    assert (
+        sql_expression
+        == "CREATE VIEW private.user_view AS SELECT id, username, email FROM private.users"
+    )
 
 def test_infering_materialized_view_sql_expression():
     Base = declarative_base()
