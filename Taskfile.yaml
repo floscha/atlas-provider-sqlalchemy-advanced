@@ -1,0 +1,12 @@
+version: '3'
+
+tasks:
+  tests:
+    cmds:
+      - uv run --with pytest pytest tests   
+    silent: true
+
+  act:
+    cmds:
+      - act -s GITHUB_TOKEN="$(gh auth token)"
+    silent: true

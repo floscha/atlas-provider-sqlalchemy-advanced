@@ -16,3 +16,10 @@ class UserView(Base):
     username = Column(Text, unique=True)
     email = Column(Text)
 ```
+
+## Development
+
+Ideally, make sure that you have [uv](https://docs.astral.sh/uv/), [act](https://nektosact.com/), and [Task](https://taskfile.dev/) installed.
+Then, you can use the following commands:
+- `task tests` to run all unit tests.
+- `task act` to run all GitHub Actions locally. (This requires you to first use `gh auth login` using the GitHub CLI.)
