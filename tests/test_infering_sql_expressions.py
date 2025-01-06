@@ -1,4 +1,4 @@
-from sqlalchemy import create_mock_engine, Column, Integer, Text
+from sqlalchemy import create_mock_engine, Column, Integer, Text, ForeignKey
 from sqlalchemy.orm import declarative_base
 
 from atlas_provider_sqlalchemy_advanced import infer_sql_statement_from_object
@@ -25,16 +25,13 @@ def test_infering_table_sql_expression_without_schema():
         sql_expression
         == """
 CREATE TABLE users (
-\tid SERIAL NOT NULL, 
-\tusername TEXT, 
-\temail TEXT, 
-\tfoo TEXT NOT NULL, 
-\tPRIMARY KEY (id), 
-\tUNIQUE (username)
-)
-
-"""
-    )
+    id SERIAL NOT NULL, 
+    username TEXT, 
+    email TEXT, 
+    foo TEXT NOT NULL, 
+    PRIMARY KEY (id), 
+    UNIQUE (username)
+)\n\n""".replace("    ", "\t"))
 
 def test_infering_table_sql_expression_with_schema():
     Base = declarative_base()
@@ -56,16 +53,35 @@ def test_infering_table_sql_expression_with_schema():
         sql_expression
         == """
 CREATE TABLE private.users (
-\tid SERIAL NOT NULL, 
-\tusername TEXT, 
-\temail TEXT, 
-\tfoo TEXT NOT NULL, 
-\tPRIMARY KEY (id), 
-\tUNIQUE (username)
-)
+    id SERIAL NOT NULL, 
+    username TEXT, 
+    email TEXT, 
+    foo TEXT NOT NULL, 
+    PRIMARY KEY (id), 
+    UNIQUE (username)
+)\n\n""".replace("    ", "\t"))
 
-"""
-    )
+
+def test_foreign_key_with_on_delete_cascade():
+    Base = declarative_base()
+
+    class Table1(Base):
+        __tablename__ = "table1"
+        id = Column(Integer, primary_key=True)
+
+    class Table2(Base):
+        __tablename__ = "table2"
+        id = Column(Integer, primary_key=True)
+        fk_id = Column(Integer, ForeignKey("table1.id", ondelete="CASCADE"))
+
+    sql_expression_table_2 = infer_sql_statement_from_object(Table2.__table__, engine)
+    assert(sql_expression_table_2 == """
+CREATE TABLE table2 (
+    id SERIAL NOT NULL, 
+    fk_id INTEGER, 
+    PRIMARY KEY (id), 
+    FOREIGN KEY(fk_id) REFERENCES table1 (id) ON DELETE CASCADE
+)\n\n""".replace("    ", "\t"))
 
 
 def test_infering_view_sql_expression_without_schema():
