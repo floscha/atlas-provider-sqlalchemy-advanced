@@ -6,19 +6,24 @@ from sqlalchemy import create_mock_engine
 from sqlalchemy.schema import CreateTable
 from sqlalchemy.orm.decl_api import DeclarativeMeta
 
+from atlas_provider_sqlalchemy_advanced.ddl.view import CreateView, View
+from atlas_provider_sqlalchemy_advanced.ddl.materialized_view import CreateMaterializedView, MaterializedView
+
 
 def infer_sql_statement_from_object(entity, engine) -> str:
-    schema = entity.info.get("schema", "")
-    name = entity.name
-    definition = entity.info.get("definition")
-    entity_type = entity.info.get("type")
-    match entity_type:
-        case "view":
-            return f"CREATE VIEW {schema}{'.' if schema else ''}{name} AS {definition}"
-        case "materialized_view":
-            return f"CREATE MATERIALIZED VIEW {schema}{'.' if schema else ''}{name} AS {definition}"
-        case _:  # Assume no type provided means table.
-            return str(CreateTable(entity).compile(engine))
+    try:
+        bases = (entity.__bases__)
+    except AttributeError:
+        bases = ()
+
+    if View in bases:
+        args = entity.__view_args__
+        return str(CreateView(args.get("schema"), entity.__viewname__, entity.__selectable__))
+    elif MaterializedView in bases:
+        args = entity.__view_args__
+        return str(CreateMaterializedView(args.get("schema"), entity.__viewname__, entity.__selectable__))
+    else:
+        return str(CreateTable(entity.__table__).compile(engine))
 
 
 def get_entities_from_file(file_path: Path):
@@ -38,13 +43,11 @@ def custom_create_all(entities: list) -> list[str]:
         "postgresql://", executor=lambda sql, *args, **kwargs: ...
     )
 
-    entities = [e.__table__ for e in entities]
-
     unique_schemas = set()
     output_lines = []
     for current_entity in entities:
         # Add schema if it hasn't been added yet by another entity.
-        current_schema = current_entity.schema
+        current_schema = current_entity.__table__.schema
         if current_schema and current_schema not in unique_schemas:
             output_lines.append(f"CREATE SCHEMA IF NOT EXISTS {current_schema}")
             unique_schemas.add(current_schema)

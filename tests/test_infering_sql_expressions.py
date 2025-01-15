@@ -1,7 +1,8 @@
-from sqlalchemy import create_mock_engine, Column, Integer, Text, ForeignKey
+from sqlalchemy import create_mock_engine, Column, Integer, Text, ForeignKey, select
 from sqlalchemy.orm import declarative_base
 
 from atlas_provider_sqlalchemy_advanced import infer_sql_statement_from_object
+from atlas_provider_sqlalchemy_advanced.ddl import MaterializedView, View
 
 engine = create_mock_engine("postgresql://", executor=lambda sql, *args, **kwargs: ...)
 
@@ -17,9 +18,7 @@ def test_infering_table_sql_expression_without_schema():
         email = Column(Text)
         foo = Column(Text, nullable=False)
 
-    test_entity = User.__table__
-
-    sql_expression = infer_sql_statement_from_object(test_entity, engine)
+    sql_expression = infer_sql_statement_from_object(User, engine)
 
     assert (
         sql_expression
@@ -45,9 +44,7 @@ def test_infering_table_sql_expression_with_schema():
         email = Column(Text)
         foo = Column(Text, nullable=False)
 
-    test_entity = User.__table__
-
-    sql_expression = infer_sql_statement_from_object(test_entity, engine)
+    sql_expression = infer_sql_statement_from_object(User, engine)
 
     assert (
         sql_expression
@@ -74,7 +71,7 @@ def test_foreign_key_with_on_delete_cascade():
         id = Column(Integer, primary_key=True)
         fk_id = Column(Integer, ForeignKey("table1.id", ondelete="CASCADE"))
 
-    sql_expression_table_2 = infer_sql_statement_from_object(Table2.__table__, engine)
+    sql_expression_table_2 = infer_sql_statement_from_object(Table2, engine)
     assert(sql_expression_table_2 == """
 CREATE TABLE table2 (
     id SERIAL NOT NULL, 
@@ -87,72 +84,66 @@ CREATE TABLE table2 (
 def test_infering_view_sql_expression_without_schema():
     Base = declarative_base()
 
-    class UserView(Base):
-        __tablename__ = "user_view"
-        __table_args__ = {
-            "info": {
-                "type": "view",
-                "definition": "SELECT id, username, email FROM private.users",
-            }
-        }
+    class User(Base):
+        __tablename__ = "users"
+
         id = Column(Integer, primary_key=True)
         username = Column(Text, unique=True)
         email = Column(Text)
+        foo = Column(Text, nullable=False)
 
-    test_entity = UserView.__table__
+    class UserView(View, Base):
+        __viewname__ = "user_view"
+        __selectable__ = select(User.id, User.username, User.email)
 
-    sql_expression = infer_sql_statement_from_object(test_entity, engine)
+    sql_expression = infer_sql_statement_from_object(UserView, engine)
 
     assert (
         sql_expression
-        == "CREATE VIEW user_view AS SELECT id, username, email FROM private.users"
+        == "CREATE VIEW user_view AS SELECT users.id, users.username, users.email \nFROM users"
     )
 
 def test_infering_view_sql_expression_with_schema():
     Base = declarative_base()
 
-    class UserView(Base):
-        __tablename__ = "user_view"
-        __table_args__ = {
-            "info": {
-                "schema": "private",
-                "type": "view",
-                "definition": "SELECT id, username, email FROM private.users",
-            }
-        }
+    class User(Base):
+        __tablename__ = "users"
+
         id = Column(Integer, primary_key=True)
         username = Column(Text, unique=True)
         email = Column(Text)
+        foo = Column(Text, nullable=False)
 
-    test_entity = UserView.__table__
+    class UserView(View, Base):
+        __viewname__ = "user_view"
+        __view_args__ = {"schema": "private"}
+        __selectable__ = select(User.id, User.username, User.email)
 
-    sql_expression = infer_sql_statement_from_object(test_entity, engine)
+    sql_expression = infer_sql_statement_from_object(UserView, engine)
 
     assert (
         sql_expression
-        == "CREATE VIEW private.user_view AS SELECT id, username, email FROM private.users"
+        == "CREATE VIEW private.user_view AS SELECT users.id, users.username, users.email \nFROM users"
     )
 
 def test_infering_materialized_view_sql_expression():
     Base = declarative_base()
 
-    class UserMaterializedView(Base):
-        __tablename__ = "user_view"
-        __table_args__ = {
-            "info": {
-                "type": "materialized_view",
-                "definition": "SELECT id, username, email FROM private.users",
-            }
-        }
+    class User(Base):
+        __tablename__ = "users"
+
         id = Column(Integer, primary_key=True)
         username = Column(Text, unique=True)
         email = Column(Text)
+        foo = Column(Text, nullable=False)
 
-    test_entity = UserMaterializedView.__table__
+    class UserView(MaterializedView, Base):
+        __viewname__ = "user_view"
+        __selectable__ = select(User.id, User.username, User.email)
 
-    sql_expression = infer_sql_statement_from_object(test_entity, engine)
+    sql_expression = infer_sql_statement_from_object(UserView, engine)
 
     assert (
         sql_expression
-        == "CREATE MATERIALIZED VIEW user_view AS SELECT id, username, email FROM private.users"
+        == "CREATE MATERIALIZED VIEW user_view AS SELECT users.id, users.username, users.email \nFROM users"
     )
